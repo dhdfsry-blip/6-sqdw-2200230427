@@ -1,0 +1,362 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>三球定位模拟器（二维版）</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      padding: 20px 24px;
+      display: flex;
+      gap: 20px;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    .left {
+      flex: 2;
+    }
+
+    .right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .sub {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    canvas {
+      border-radius: 12px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      cursor: grab;
+      display: block;
+    }
+
+    canvas:active {
+      cursor: grabbing;
+    }
+
+    .panel {
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 12px 14px;
+      border: 1px solid #e5e7eb;
+      font-size: 13px;
+    }
+
+    .panel h2 {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .dist-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+
+    .dist-row:last-child {
+      border-bottom: none;
+    }
+
+    .sat-color {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    .sat-1 { background: #ef4444; }  /* 红 */
+    .sat-2 { background: #3b82f6; }  /* 蓝 */
+    .sat-3 { background: #10b981; }  /* 绿 */
+
+    .btn {
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: none;
+      background: #2563eb;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s;
+      box-shadow: 0 4px 10px rgba(37,99,235,0.25);
+      width: 100%;
+    }
+
+    .btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(37,99,235,0.3);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 6px rgba(37,99,235,0.25);
+    }
+
+    .tip {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #e5f0ff;
+      color: #1d4ed8;
+      margin-left: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 左侧：画布 -->
+    <div class="left">
+      <h1>三球交会定位模拟器（平面三圆版）</h1>
+      <div class="sub">
+        拖动白色圆点代表“用户”，实时查看到三颗“卫星”的距离。
+      </div>
+      <canvas id="canvas" width="640" height="400"></canvas>
+    </div>
+
+    <!-- 右侧：数据面板 -->
+    <div class="right">
+      <div class="panel">
+        <h2>卫星位置（固定坐标）</h2>
+        <div class="dist-row">
+          <span><span class="sat-color sat-1"></span>卫星 S1</span>
+          <span>(100, 100)</span>
+        </div>
+        <div class="dist-row">
+          <span><span class="sat-color sat-2"></span>卫星 S2</span>
+          <span>(520, 120)</span>
+        </div>
+        <div class="dist-row">
+          <span><span class="sat-color sat-3"></span>卫星 S3</span>
+          <span>(320, 340)</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>用户到卫星的距离（像素）</h2>
+        <div class="dist-row">
+          <span><span class="sat-color sat-1"></span>d1 = |用户 − S1|</span>
+          <span id="d1">0.00</span>
+        </div>
+        <div class="dist-row">
+          <span><span class="sat-color sat-2"></span>d2 = |用户 − S2|</span>
+          <span id="d2">0.00</span>
+        </div>
+        <div class="dist-row">
+          <span><span class="sat-color sat-3"></span>d3 = |用户 − S3|</span>
+          <span id="d3">0.00</span>
+        </div>
+      </div>
+
+      <button class="btn" id="locateBtn">
+        定位 / 反向画三圆
+        <span class="badge">进阶效果</span>
+      </button>
+
+      <div class="tip">
+        使用说明：<br>
+        • 画布中 3 个彩色点为“卫星”，位置固定。<br>
+        • 白色实心点为“用户”，按住并拖动它。<br>
+        • 右侧实时显示用户到三颗卫星的欧氏距离。<br>
+        • 点击“定位”按钮，将以这三个距离作为半径，分别以三颗卫星为圆心画出三个圆，
+          三圆的交点就是当前用户的位置。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // 三颗“卫星”的固定坐标
+    const satellites = [
+      { x: 100, y: 100, color: '#ef4444', label: 'S1' }, // 红
+      { x: 520, y: 120, color: '#3b82f6', label: 'S2' }, // 蓝
+      { x: 320, y: 340, color: '#10b981', label: 'S3' }  // 绿
+    ];
+
+    // 用户位置（可拖动）
+    const user = {
+      x: 320,
+      y: 200,
+      radius: 8,
+      color: '#ffffff',
+      border: '#111827'
+    };
+
+    let isDragging = false;
+    let showCircles = false; // 是否显示“反向画出的三圆”
+
+    const d1Span = document.getElementById('d1');
+    const d2Span = document.getElementById('d2');
+    const d3Span = document.getElementById('d3');
+    const locateBtn = document.getElementById('locateBtn');
+
+    // 获取鼠标在 canvas 内的坐标
+    function getMousePos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top
+      };
+    }
+
+    // 判断鼠标是否点在用户小圆附近
+    function isOnUser(pos) {
+      const dx = pos.x - user.x;
+      const dy = pos.y - user.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      return dist <= user.radius + 5;
+    }
+
+    // 计算距离并更新右侧显示
+    function computeDistances() {
+      const distances = satellites.map(s => {
+        const dx = user.x - s.x;
+        const dy = user.y - s.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      });
+
+      // 更新面板显示，保留 2 位小数
+      d1Span.textContent = distances[0].toFixed(2);
+      d2Span.textContent = distances[1].toFixed(2);
+      d3Span.textContent = distances[2].toFixed(2);
+
+      return distances;
+    }
+
+    // 画一个小圆点
+    function drawPoint(x, y, radius, fillColor, strokeColor, label, labelColor) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      if (fillColor) {
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+      }
+      if (strokeColor) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = strokeColor;
+        ctx.stroke();
+      }
+
+      if (label) {
+        ctx.font = '12px system-ui';
+        ctx.fillStyle = labelColor || '#374151';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(label, x, y - radius - 4);
+      }
+    }
+
+    // 画圆（用于“反向画出三圆”）
+    function drawCircle(x, y, radius, color) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = color;
+      ctx.setLineDash([5, 5]);   // 虚线更好区分
+      ctx.stroke();
+      ctx.setLineDash([]);        // 画完恢复
+    }
+
+    // 主渲染函数
+    function drawScene() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 计算当前距离
+      const distances = computeDistances();
+
+      // 画三颗卫星
+      satellites.forEach(s => {
+        drawPoint(s.x, s.y, 7, s.color, '#ffffff', s.label, s.color);
+      });
+
+      // （可选）画三圆：以卫星为圆心，distance 为半径
+      if (showCircles) {
+        satellites.forEach((s, idx) => {
+          drawCircle(s.x, s.y, distances[idx], s.color);
+        });
+      }
+
+      // 画用户（可拖动小白点）
+      drawPoint(user.x, user.y, user.radius, user.color, user.border, '用户', '#111827');
+    }
+
+    // 鼠标事件：拖动用户
+    canvas.addEventListener('mousedown', (evt) => {
+      const pos = getMousePos(evt);
+      if (isOnUser(pos)) {
+        isDragging = true;
+        showCircles = false;  // 一旦开始拖动，隐藏旧的“定位三圆”
+        drawScene();
+      }
+    });
+
+    canvas.addEventListener('mousemove', (evt) => {
+      if (!isDragging) return;
+      const pos = getMousePos(evt);
+
+      // 限制用户点不得拖出画布
+      user.x = Math.min(Math.max(pos.x, 0), canvas.width);
+      user.y = Math.min(Math.max(pos.y, 0), canvas.height);
+
+      drawScene();
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    // 点击“定位”按钮：根据当前 3 个距离画三圆
+    locateBtn.addEventListener('click', () => {
+      showCircles = true;
+      drawScene();
+    });
+
+    // 初始化
+    drawScene();
+  </script>
+</body>
+</html>
